@@ -1,0 +1,20 @@
+ef-add name:
+    dotnet ef migrations add {{name}} \
+        --project SummerStore.Infrastructure \
+        --startup-project SummerStore.Api \
+        --output-dir Data/Migrations
+
+ef-remove:
+    dotnet ef migrations remove \
+        --project SummerStore.Infrastructure \
+        --startup-project SummerStore.Api
+
+ef-update:
+    dotnet ef database update \
+        --project SummerStore.Infrastructure \
+        --startup-project SummerStore.Api 
+
+ef-drop:
+    dotnet ef database drop \
+        --project SummerStore.Infrastructure \
+        --startup-project SummerStore.Api 
