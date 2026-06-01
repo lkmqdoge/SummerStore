@@ -10,17 +10,27 @@ public static class UserEndpoints
             .MapGroup("/api/users");
 
         group.MapGet("/", GetAll);
+        // group.MapGet("/{id:int}", GetById);
         group.MapPost("/", Create);
     }
 
-    public static async Task<IResult> Create(IUserService userService, CancellationToken ct)
+    public static async Task<IResult> Create(
+            string username,
+            string password,
+            IUserService userService,
+            CancellationToken ct)
     {
-        var created = await userService.AddAsync("TEST", "test", ct);
+        var created = await userService.AddAsync(username, password, ct);
         return Results.Created($"/api/users/{created}", created);
     }
+
+    // public static async Task<IResult> GetById(int id, IUserService userService, CancellationToken ct)
+    // {
+    //     var user = await userService.GetByIdAsync(id, ct);
+    //     return user == null ? Results.NotFound() : Results.Json(await userService.GetByIdAsync(id, ct));
+    // }
     public static async Task<IResult> GetAll(IUserService userService, CancellationToken ct)
     {
-        return Results.Ok(await userService.GetAllAsync(ct));
+        return Results.Json(await userService.GetAllAsync(ct));
     }
 }
-

@@ -2,4 +2,5 @@
   <Project Path="SummerStore.Api/SummerStore.Api.csproj" />
   <Project Path="SummerStore.Core/SummerStore.Core.csproj" />
   <Project Path="SummerStore.Infrastructure/SummerStore.Infrastructure.csproj" />
+  <Project Path="SummerStore.Tests.Unit/SummerStore.Tests.Unit.csproj" />
 </Solution>

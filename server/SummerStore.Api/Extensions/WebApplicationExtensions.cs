@@ -18,6 +18,10 @@ public static class WebApplicationExtensions
 
         app.UseHttpsRedirection();
         app.MapUserEndpoints();
+        app.MapAuthEndpoints();
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         return app;
     }

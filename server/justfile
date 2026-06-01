@@ -1,3 +1,6 @@
+run:
+    dotnet run --project ./SummerStore.Api
+
 ef-add name:
     dotnet ef migrations add {{name}} \
         --project SummerStore.Infrastructure \

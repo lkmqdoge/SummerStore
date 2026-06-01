@@ -32,7 +32,7 @@ public static class WebApplicationBuilderExtensions
 
         builder.Services
             .AddDataAccess(builder.Configuration)
-            .AddCore();
+            .AddCore(builder.Configuration);
 
         #endregion Project Dependencies
 
