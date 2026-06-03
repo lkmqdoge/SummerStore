@@ -36,6 +36,9 @@ public static class WebApplicationBuilderExtensions
 
         #endregion Project Dependencies
 
+        builder.Services
+            .AddAuthorization();
+
         return builder;
     }
 }

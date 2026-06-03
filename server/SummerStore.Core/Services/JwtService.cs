@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
+using SummerStore.Core;
 using SummerStore.Core.Interfaces;
 using SummerStore.Core.Models.Entities;
 

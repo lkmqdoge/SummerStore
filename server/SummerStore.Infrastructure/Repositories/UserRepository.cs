@@ -19,12 +19,14 @@ internal class UserRepository(AppDbContext context) : IUserRepository
     public async Task<List<User>> GetAllAsync(CancellationToken cancellationToken)
     {
         return await context.Users
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await context.Users
+            .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Email == email);
     }
 

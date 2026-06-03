@@ -7,11 +7,14 @@ namespace SummerStore.Tests.Unit;
 public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _repoMock = new();
+
+    private readonly Mock<IJwtService> _jwtMock = new();
+        
     private readonly UserService _userService;
 
     UserServiceTests()
     {
-        _userService = new(_repoMock.Object);
+        _userService = new(_repoMock.Object, _jwtMock.Object);
     }
 
     [Fact]
