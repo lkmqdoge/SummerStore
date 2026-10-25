@@ -1,5 +1,10 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+
 using SummerStore.Core.Interfaces;
 using SummerStore.Core.Models.Dto;
+using SummerStore.Core.Models.Entities;
+using SummerStore.Infrastructure.Data;
 
 namespace SummerStore.Api.Endpoints;
 
@@ -7,45 +12,67 @@ public static class UserEndpoints
 {
     public static void MapUserEndpoints(this WebApplication app)
     {
-        var group = app
-            .MapGroup("/api/");
+        var group = app.MapGroup("/api/auth");
 
-        group.MapPost("register", Register);
-        group.MapPost("login", Login);
+        group.MapPost("/register", Register);
+        group.MapPost("/login", Login);
     }
 
-    public static async Task<IResult> Login(
-        LoginUserDto request,
-        IUserService userService,
+    private static async Task<IResult> Register(
+        RegisterRequest req,
+        AppDbContext db,
+        IPasswordHasher<User> hasher,
+        IJwtService tokens,
         CancellationToken ct)
     {
-        var token = await userService.LoginAsync(request.Email, request.Password, ct);
-        return Results.Ok(token);
+        var errors = new Dictionary<string, string[]>();
+        var email = req.Email?.Trim().ToLowerInvariant() ?? "";
+        var userName = req.UserName?.Trim() ?? "";
+
+        if (userName.Length is < 3 or > 64)
+            errors["userName"] = ["username length should be in range from 3 to 64 symbols"];
+
+        if (!email.Contains('@') || email.Length > 256)
+            errors["email"] = ["invalid email"];
+
+        if ((req.Password?.Length ?? 0) < 8)
+            errors["password"] = ["password should be at least 8 symbols long"];
+
+        if (errors.Count > 0)
+            return Results.ValidationProblem(errors);
+
+        if (await db.Users.AnyAsync(u => u.Email == email || u.UserName == userName, ct))
+            return Results.Conflict(new { error = "Пользователь с таким email или именем уже существует" });
+
+        var user = new User
+        {
+            Id = Guid.CreateVersion7(),
+            UserName = userName,
+            Email = email
+        };
+
+        user.PasswordHash = hasher.HashPassword(user, req.Password!);
+        user.Cart = new Cart { Id = Guid.CreateVersion7() };
+
+        db.Users.Add(user);
+        await db.SaveChangesAsync(ct);
+
+        return Results.Ok(new AuthResponse(tokens.GenerateToken(user), user.Id, user.UserName));
     }
-    public static async Task<IResult> Register(
-        RegisterUserDto request,
-        IUserService userService,
+
+private static async Task<IResult> Login(
+        LoginRequest req,
+        AppDbContext db,
+        IPasswordHasher<User> hasher,
+        IJwtService tokens,
         CancellationToken ct)
     {
-        var created = await userService.RegisterAsync(
-            request.UserName,
-            request.Email,
-            request.Password, ct);
-        return Results.Created($"/api/users/{created}", created);
-    }
+        var email = req.Email?.Trim().ToLowerInvariant() ?? "";
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
 
-    // public static async Task<IResult> Create(
-    //         string username,
-    //         string password,
-    //         IUserService userService,
-    //         CancellationToken ct)
-    // {
-    //     var created = await userService.AddAsync(username, password, ct);
-    //     return Results.Created($"/api/users/{created}", created);
-    // }
-
-    public static async Task<IResult> GetAll(IUserService userService, CancellationToken ct)
-    {
-        return Results.Json(await userService.GetAllAsync(ct));
+        return user is null ||
+            hasher.VerifyHashedPassword(user, user.PasswordHash, req.Password ?? "") == PasswordVerificationResult.Failed
+            ? Results.Unauthorized()
+            : Results.Ok(new AuthResponse(tokens.GenerateToken(user), user.Id, user.UserName));
     }
 }

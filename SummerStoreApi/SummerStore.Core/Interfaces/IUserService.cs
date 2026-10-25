@@ -1,6 +1,7 @@
 using SummerStore.Core.Models.Entities;
 
 namespace SummerStore.Core.Interfaces;
+
 public interface IUserService
 {
     Task<Guid> RegisterAsync(

@@ -17,7 +17,10 @@ public static class WebApplicationExtensions
         }
 
         app.UseHttpsRedirection();
+
         app.MapUserEndpoints();
+        app.MapProductEndpoints();
+        app.MapCartEndpoints();
 
         app.UseAuthentication();
         app.UseAuthorization();

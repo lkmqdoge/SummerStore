@@ -15,8 +15,9 @@ public class JwtService(IOptions<AuthSettings> options) : IJwtService
     public string GenerateToken(User user)
     {
         var claims = new List<Claim>{
-            new("userName", user.UserName ?? ""),
-            new("id", user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Name, user.UserName),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
         };
 
         var jwtToken = new JwtSecurityToken(

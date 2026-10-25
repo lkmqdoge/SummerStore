@@ -30,14 +30,12 @@ public static class WebApplicationBuilderExtensions
 
         #region Project Dependencies
 
-        builder.Services
-            .AddDataAccess(builder.Configuration)
+        builder.Services.AddDataAccess(builder.Configuration)
             .AddCore(builder.Configuration);
 
         #endregion Project Dependencies
 
-        builder.Services
-            .AddAuthorization();
+        builder.Services.AddAuthorization();
 
         return builder;
     }

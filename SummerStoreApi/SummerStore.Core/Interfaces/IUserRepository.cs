@@ -9,6 +9,4 @@ public interface IUserRepository
     Task<User?> GetByEmailAsync(string email);
 
     Task<List<User>> GetAllAsync(CancellationToken cancellationToken);
-
-    // Task<User?> GetByIdAsync(int id, CancellationToken ct);
 }
