@@ -14,8 +14,14 @@ public static class UserEndpoints
     {
         var group = app.MapGroup("/api/auth");
 
-        group.MapPost("/register", Register);
-        group.MapPost("/login", Login);
+        group.MapPost("/register", Register)
+            .Produces<AuthResponse>()
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status409Conflict);
+
+        group.MapPost("/login", Login)
+            .Produces<AuthResponse>()
+            .Produces(StatusCodes.Status401Unauthorized);
     }
 
     private static async Task<IResult> Register(

@@ -1,0 +1,5 @@
+run:
+    npm run dev
+
+dev-api-gen:
+    npx swagger-typescript-api generate -p http://localhost:5130/swagger/v1/swagger.json -o ./app --axios
