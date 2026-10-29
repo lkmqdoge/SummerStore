@@ -30,11 +30,15 @@ public static class WebApplicationBuilderExtensions
 
         builder.Services.AddCors(options => options.AddPolicy("Frontend", policy => policy
             .WithOrigins(
+                "http://frontend:3000",
+                "http://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:5174"
             )
             .AllowAnyHeader()
-            .AllowAnyMethod()));
+            .AllowAnyMethod()
+            .AllowCredentials()
+        ));
 
         #region Project Dependencies
 

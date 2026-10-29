@@ -8,5 +8,6 @@ public sealed class Product : BaseEntity
     public decimal Price { get; set; }
 
     public List<ProductImage> Images { get; set; } = [];
+    public List<Document> Attachments { get; set; } = [];
     public List<CartItem> CartItems { get; set; } = [];
 }

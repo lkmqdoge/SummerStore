@@ -26,6 +26,7 @@ public static class Extensions
         services.AddScoped<IUserService, UserService>()
             .AddScoped<IJwtService, JwtService>()
             .Configure<AuthSettings>(configuration.GetSection("AuthSettings"))
+            .Configure<StorageSettings>(configuration.GetSection("StorageSettings"))
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(o => o.TokenValidationParameters = new()
             {
