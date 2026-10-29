@@ -91,6 +91,54 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.ToTable("cart_items", (string)null);
                 });
 
+            modelBuilder.Entity("SummerStore.Core.Models.Entities.Document", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("content_type");
+
+                    b.Property<string>("Discriminator")
+                        .IsRequired()
+                        .HasMaxLength(13)
+                        .HasColumnType("character varying(13)")
+                        .HasColumnName("discriminator");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ProductId2")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id2");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint")
+                        .HasColumnName("size");
+
+                    b.HasKey("Id")
+                        .HasName("pk_documents");
+
+                    b.HasIndex("ProductId2")
+                        .HasDatabaseName("ix_documents_product_id2");
+
+                    b.ToTable("documents", (string)null);
+
+                    b.HasDiscriminator<string>("Discriminator").HasValue("Document");
+
+                    b.UseTphMappingStrategy();
+                });
+
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -136,41 +184,6 @@ namespace SummerStore.Infrastructure.Data.Migrations
                         .HasDatabaseName("ix_products_title");
 
                     b.ToTable("products", (string)null);
-                });
-
-            modelBuilder.Entity("SummerStore.Core.Models.Entities.ProductImage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("content_type");
-
-                    b.Property<byte[]>("Image")
-                        .IsRequired()
-                        .HasColumnType("bytea")
-                        .HasColumnName("image");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("product_id");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
-
-                    b.HasKey("Id")
-                        .HasName("pk_product_images");
-
-                    b.HasIndex("ProductId", "SortOrder")
-                        .HasDatabaseName("ix_product_images_product_id_sort_order");
-
-                    b.ToTable("product_images", (string)null);
                 });
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.User", b =>
@@ -220,6 +233,20 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("SummerStore.Core.Models.Entities.ProductImage", b =>
+                {
+                    b.HasBaseType("SummerStore.Core.Models.Entities.Document");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_documents_product_id");
+
+                    b.HasDiscriminator().HasValue("ProductImage");
+                });
+
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Cart", b =>
                 {
                     b.HasOne("SummerStore.Core.Models.Entities.User", "User")
@@ -253,6 +280,16 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.Navigation("Product");
                 });
 
+            modelBuilder.Entity("SummerStore.Core.Models.Entities.Document", b =>
+                {
+                    b.HasOne("SummerStore.Core.Models.Entities.Product", null)
+                        .WithMany("Attachments")
+                        .HasForeignKey("ProductId2")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_documents_products_product_id2");
+                });
+
             modelBuilder.Entity("SummerStore.Core.Models.Entities.ProductImage", b =>
                 {
                     b.HasOne("SummerStore.Core.Models.Entities.Product", "Product")
@@ -260,7 +297,7 @@ namespace SummerStore.Infrastructure.Data.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_product_images_products_product_id");
+                        .HasConstraintName("fk_documents_products_product_id");
 
                     b.Navigation("Product");
                 });
@@ -272,6 +309,8 @@ namespace SummerStore.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Product", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("CartItems");
 
                     b.Navigation("Images");

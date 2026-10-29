@@ -17,7 +17,7 @@ public static class ProductEndpoints
 
         group.MapGet("/", GetList);
         group.MapGet("/{id:guid}", GetById);
-        group.MapGet("/{id:guid}/images/{imageId:guid}", GetImage);
+        // group.MapGet("/{id:guid}/images/{imageId:guid}", GetImage);
 
         var admin = group.MapGroup("").RequireAuthorization();
         admin.MapPost("/", Create);
@@ -51,17 +51,17 @@ public static class ProductEndpoints
         return product is null ? Results.NotFound() : Results.Ok(product);
     }
 
-    private static async Task<IResult> GetImage(Guid id, Guid imageId, AppDbContext db, CancellationToken ct)
-    {
-        var image = await db.ProductImages.AsNoTracking()
-            .Where(i => i.Id == imageId && i.ProductId == id)
-            .Select(i => new { i.Image, i.ContentType })
-            .FirstOrDefaultAsync(ct);
-
-        return image is null
-            ? Results.NotFound()
-            : Results.File(image.Image, image.ContentType);
-    }
+    // private static async Task<IResult> GetImage(Guid id, Guid imageId, AppDbContext db, CancellationToken ct)
+    // {
+    //     var image = await db.ProductImages.AsNoTracking()
+    //         .Where(i => i.Id == imageId && i.ProductId == id)
+    //         .Select(i => new { i.Image, i.ContentType })
+    //         .FirstOrDefaultAsync(ct);
+    //
+    //     return image is null
+    //         ? Results.NotFound()
+    //         : Results.File(image.Image, image.ContentType);
+    // }
 
     private static async Task<IResult> Create(ProductRequest req, AppDbContext db, CancellationToken ct)
     {
@@ -132,7 +132,7 @@ public static class ProductEndpoints
         {
             Id = Guid.CreateVersion7(),
             ProductId = id,
-            Image = ms.ToArray(),
+            // Image = ms.ToArray(),
             ContentType = file.ContentType,
             SortOrder = maxOrder + 1
         };
@@ -168,4 +168,3 @@ public static class ProductEndpoints
         return errors.Count > 0 ? errors : null;
     }
 }
-

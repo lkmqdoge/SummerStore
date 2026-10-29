@@ -48,6 +48,11 @@ public static class WebApplicationBuilderExtensions
         #endregion Project Dependencies
 
         builder.Services.AddAuthorization();
+        _ = builder.Services.AddTransient(p =>
+        {
+            var loggerFactory = p.GetRequiredService<ILoggerFactory>();
+            return loggerFactory.CreateLogger("My logger");
+        });
 
         return builder;
     }
