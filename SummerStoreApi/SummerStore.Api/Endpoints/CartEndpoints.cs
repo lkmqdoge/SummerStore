@@ -14,7 +14,8 @@ public static class CartEndpoints
     {
         var group = app.MapGroup("/api/cart").RequireAuthorization();
 
-        group.MapGet("/", GetCart);
+        group.MapGet("/", GetCart)
+            .Produces<CartResponse>();
         group.MapPost("/items", AddItem);
         group.MapPut("/items/{productId:guid}", UpdateItem);
         group.MapDelete("/items/{productId:guid}", RemoveItem);

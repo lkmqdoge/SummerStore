@@ -24,6 +24,26 @@ export interface AuthResponse {
   userName?: string | null;
 }
 
+export interface CartItemResponse {
+  /** @format uuid */
+  productId?: string;
+  title?: string | null;
+  /** @format double */
+  price?: number;
+  /** @format int32 */
+  quantity?: number;
+  /** @format double */
+  lineTotal?: number;
+}
+
+export interface CartResponse {
+  /** @format uuid */
+  cartId?: string;
+  items?: CartItemResponse[] | null;
+  /** @format double */
+  total?: number;
+}
+
 export interface HttpValidationProblemDetails {
   type?: string | null;
   title?: string | null;
@@ -67,6 +87,8 @@ export interface ProductRequest {
 export interface ProductResponse {
   /** @format uuid */
   id?: string;
+  /** @format uuid */
+  creatorId?: string;
   title?: string | null;
   summary?: string | null;
   description?: string | null;
@@ -287,9 +309,10 @@ export class Api<
      * @request GET:/api/cart
      */
     cartList: (params: RequestParams = {}) =>
-      this.request<void, any>({
+      this.request<CartResponse, any>({
         path: `/api/cart`,
         method: "GET",
+        format: "json",
         ...params,
       }),
 

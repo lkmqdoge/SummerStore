@@ -59,7 +59,7 @@ public static class ProductEndpoints
     {
         var product = await db.Products.AsNoTracking()
             .Where(p => p.Id == id)
-            .Select(p => new ProductResponse(p.Id, p.Title, p.Summary,
+            .Select(p => new ProductResponse(p.Id, p.CreatorId, p.Title, p.Summary,
                 p.Description, p.Price, p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => i.Id).ToList()))
             .FirstOrDefaultAsync(ct);
 
@@ -85,7 +85,7 @@ public static class ProductEndpoints
         await db.SaveChangesAsync(ct);
 
         return Results.Created($"/api/products/{product.Id}",
-                new ProductResponse(product.Id, product.Title, product.Summary, product.Description, product.Price, []));
+                new ProductResponse(product.Id, product.CreatorId, product.Title, product.Summary, product.Description, product.Price, []));
     }
 
     private static async Task<IResult> Update(Guid id, ProductRequest req, AppDbContext db, CancellationToken ct)

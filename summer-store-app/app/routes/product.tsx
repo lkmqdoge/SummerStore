@@ -7,7 +7,7 @@ import {
 import { useState } from "react";
 
 import { client } from "~/lib/client";
-import { isAuthenticated } from "~/lib/auth";
+import { getUserId, isAuthenticated } from "~/lib/auth";
 import type { Route } from "../+types/root";
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
@@ -41,7 +41,37 @@ export default function Product({loaderData}: Route.ComponentProps) {
     const [downloading, setDownloading] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const authed = isAuthenticated();
+    const isAuthor = product.creatorId === getUserId();
+
+    const [adding, setAdding] = useState(false);
+    const [added, setAdded] = useState(false);
+
+    const handleAddToCart = async () => {
+        if (!isAuthenticated()) {
+            navigate(`/login?from=${encodeURIComponent(`/products/${product.id}`)}`);
+            return;
+        }
+        setAdding(true);
+        setError(null);
+        try {
+            await client.api.cartItemsCreate({
+                productId: product.id!,
+                quantity: 1,
+            });
+            setAdded(true);
+            // через пару секунд вернуть кнопку в исходное состояние
+            window.setTimeout(() => setAdded(false), 2000);
+        } catch (err) {
+            const status = (err as any)?.response?.status;
+            setError(
+                status === 401 ? "Требуется войти"
+                    : status === 404 ? "Товар или корзина не найдены"
+                        : "Не удалось добавить в корзину",
+            );
+        } finally {
+            setAdding(false);
+        }
+    };
 
     const handleDownload = async () => {
         setDownloading(true);
@@ -49,8 +79,6 @@ export default function Product({loaderData}: Route.ComponentProps) {
         try {
             const res = await client.api.productsAttachmentsList(
                 { id: product.id! },
-                // В сгенерированном коде format: "json", а сервер отдаёт zip —
-                // без этого override axios попытается распарсить бинарь как JSON
                 { format: "blob" },
             );
 
@@ -115,7 +143,7 @@ export default function Product({loaderData}: Route.ComponentProps) {
 
                 {product.description && (
                     <section>
-                        <h2 className="font-semibold mb-1">Описание</h2>
+                        <h2 className="font-semibold mb-1">Description</h2>
                         <p className="whitespace-pre-line leading-relaxed">
                             {product.description}
                         </p>
@@ -124,7 +152,7 @@ export default function Product({loaderData}: Route.ComponentProps) {
 
                 {(product.imageIds?.length ?? 0) > 0 && (
                     <section>
-                        <h2 className="font-semibold mb-1">Изображения</h2>
+                        <h2 className="font-semibold mb-1">Rewards</h2>
                         <p className="text-sm opacity-70">
                             {product.imageIds!.length} шт. — скачиваются в общем zip
                         </p>
@@ -140,10 +168,10 @@ export default function Product({loaderData}: Route.ComponentProps) {
                         disabled={downloading}
                         className="border-primary border-2 px-3 py-1 disabled:opacity-50"
                     >
-                        {downloading ? "Скачивание…" : "Скачать вложения (zip)"}
+                        {downloading ? "Downloading…" : "Download rewards"}
                     </button>
 
-                    {authed && (
+                    {isAuthor && (
                         <>
                             <Link
                                 to={`/products/${product.id}/edit`}
@@ -157,11 +185,19 @@ export default function Product({loaderData}: Route.ComponentProps) {
                                 disabled={deleting}
                                 className="border-primary border-2 px-3 py-1 text-red-600 disabled:opacity-50"
                             >
-                                {deleting ? "Удаление…" : "Удалить"}
+                                {deleting ? "Deleting…" : "Delete"}
                             </button>
                         </>
                     )}
                 </div>
+                <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={adding}
+                    className="border-primary border-2 px-3 py-1 disabled:opacity-50"
+                >
+                    {adding ? "Добавление…" : added ? "Добавлено ✓" : "В корзину"}
+                </button>
             </article>
         </div>
     );
