@@ -1,8 +1,11 @@
 using System.IO.Compression;
+using System.Security.Claims;
 
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
+using SummerStore.Core;
 using SummerStore.Core.Models.Dto;
 using SummerStore.Core.Models.Entities;
 using SummerStore.Infrastructure.Data;
@@ -18,16 +21,25 @@ public static class ProductEndpoints
     {
         var group = app.MapGroup("api/products");
 
-        group.MapGet("/", GetList);
-        group.MapGet("/{id:guid}", GetById);
-        // group.MapGet("/{id:guid}/images/{imageId:guid}", GetImage);
+        group.MapGet("/", GetList)
+            .Produces<List<ProductListItem>>();
+
+        group.MapGet("/{id:guid}", GetById)
+            .Produces<ProductResponse>()
+            .Produces(StatusCodes.Status404NotFound);
+
+        group.MapGet("/attachments", GetAttachments)
+            .Produces<IFileHttpResult>();
 
         var admin = group.MapGroup("").RequireAuthorization();
         admin.MapPost("/", Create);
         admin.MapPut("/{id:guid}", Update);
         admin.MapDelete("/{id:guid}", Delete);
-        admin.MapPost("/{id:guid}/images", UploadImage).DisableAntiforgery();
-        admin.MapDelete("/{id:guid}/images/{imageId:guid}", DeleteImage);
+        admin.MapPost("{id:guid}/attachments", UploadFile)
+            .DisableAntiforgery();
+
+        // admin.MapPost("/{id:guid}/images", UploadImage).DisableAntiforgery();
+        // admin.MapDelete("/{id:guid}/images/{imageId:guid}", DeleteImage);
     }
 
     private static async Task<IResult> GetList(AppDbContext db, CancellationToken ct)
@@ -37,7 +49,7 @@ public static class ProductEndpoints
             .OrderByDescending(p => p.CreatedAt)
             .Select(p => new ProductListItem(
                 p.Id, p.Title, p.Summary, p.Price,
-                p.Images.OrderBy(i => i.SortOrder).Select(i => (Guid?)i.Id).FirstOrDefault()))
+                p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => (Guid?)i.Id).FirstOrDefault()))
             .ToListAsync(ct);
 
         return Results.Ok(items);
@@ -48,25 +60,15 @@ public static class ProductEndpoints
         var product = await db.Products.AsNoTracking()
             .Where(p => p.Id == id)
             .Select(p => new ProductResponse(p.Id, p.Title, p.Summary,
-                p.Description, p.Price, p.Images.OrderBy(i => i.SortOrder).Select(i => i.Id).ToList()))
+                p.Description, p.Price, p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => i.Id).ToList()))
             .FirstOrDefaultAsync(ct);
 
         return product is null ? Results.NotFound() : Results.Ok(product);
     }
 
-    // private static async Task<IResult> GetImage(Guid id, Guid imageId, AppDbContext db, CancellationToken ct)
-    // {
-    //     var image = await db.ProductImages.AsNoTracking()
-    //         .Where(i => i.Id == imageId && i.ProductId == id)
-    //         .Select(i => new { i.Image, i.ContentType })
-    //         .FirstOrDefaultAsync(ct);
-    //
-    //     return image is null
-    //         ? Results.NotFound()
-    //         : Results.File(image.Image, image.ContentType);
-    // }
 
-    private static async Task<IResult> Create(ProductRequest req, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> Create(ProductRequest req, ClaimsPrincipal principal,
+            AppDbContext db, CancellationToken ct)
     {
         if (Validate(req) is { } errors) return Results.ValidationProblem(errors);
 
@@ -75,7 +77,8 @@ public static class ProductEndpoints
             Title = req.Title.Trim(),
             Summary = req.Summary.Trim(),
             Description = req.Description.Trim(),
-            Price = req.Price
+            Price = req.Price,
+            CreatorId = principal.GetUserId()
         };
 
         db.Products.Add(product);
@@ -112,79 +115,115 @@ public static class ProductEndpoints
         return deleted == 0 ? Results.NotFound() : Results.NoContent();
     }
 
-    private static async Task<FileResult> GetAttachments(Guid id, AppDbContext context, CancellationToken ct)
+private static async Task<IResult> GetAttachments(
+    Guid id,
+    IOptions<StorageSettings> options,
+    AppDbContext context,
+    CancellationToken ct)
+{
+    var attachments = await context.Products
+        .Where(p => p.Id == id)
+        .SelectMany(p => p.Attachments)
+        .AsNoTracking()
+        .Select(a => new { a.FilePath, a.Name })
+        .ToListAsync(ct);
+
+    if (attachments.Count == 0) return Results.NotFound();
+
+    var baseDir = Path.Combine(
+        Path.GetFullPath(options.Value.AttachmentsRootPath), id.ToString());
+
+    var tempPath = Path.Combine(Path.GetTempPath(), $"{id}.zip");
+
+    try
     {
-        try {
-            var attachments = await context.Products
-                .Where(p => p.Id == id)
-                .SelectMany(p => p.Attachments)
-                .AsNoTracking()
-                .Select(a => a.FilePath)
-                .ToListAsync(ct);
-
-            await using var memoryStream = new MemoryStream();
-            await using var zipArchive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true);
-
-            foreach (var file in attachments)
+        await using (var fs = new FileStream(
+            tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, useAsync: true))
+        await using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: false))
+        {
+            foreach (var item in attachments)
             {
-                zipArchive.CreateEntryFromFile(file, Path.GetFileName(file),CompressionLevel.Optimal);
+                var fullPath = Path.IsPathRooted(item.FilePath)
+                    ? item.FilePath
+                    : Path.Combine(baseDir, Path.GetFileName(item.FilePath));
+
+                if (!File.Exists(fullPath)) continue;
+
+                var entryName = string.IsNullOrWhiteSpace(item.Name)
+                    ? Path.GetFileName(fullPath)
+                    : item.Name;
+
+                await zip.CreateEntryFromFileAsync(fullPath, entryName, CompressionLevel.Optimal);
             }
+        } // ← zip закрыт, файл на диске целый
 
-            memoryStream.Position = 0;
-
-            return new FileStreamResult(memoryStream, "application/zip")
-            {
-                FileDownloadName = $"{id}.zip"
-            };
-        }
-        catch (Exception e)
-        {
-            return Results.InternalServerError();
-        }
+        return Results.File(
+            tempPath,
+            contentType: "application/zip",
+            fileDownloadName: $"{id}.zip",
+            enableRangeProcessing: true);
     }
-
-    private static async Task<IResult> UploadImage(
-            Guid id, IFormFile file, AppDbContext db, CancellationToken ct)
+    catch (OperationCanceledException)
     {
-        if (file.Length is 0 or > MaxImageSize)
-            return Results.BadRequest(new { error = "Размер файла должен быть от 1 байта до 5 МБ" });
-        if (!AllowedTypes.Contains(file.ContentType))
-            return Results.BadRequest(new { error = "Допустимы только JPEG, PNG и WebP" });
-
-        if (!await db.Products.AnyAsync(p => p.Id == id, ct))
-            return Results.NotFound();
-
-        await using var ms = new MemoryStream((int)file.Length);
-        await file.CopyToAsync(ms, ct);
-
-        var maxOrder = await db.ProductImages
-            .Where(i => i.ProductId == id)
-            .Select(i => (int?)i.SortOrder)
-            .MaxAsync(ct) ?? -1;
-
-        var image = new ProductImage
-        {
-            Id = Guid.CreateVersion7(),
-            ProductId = id,
-            // Image = ms.ToArray(),
-            ContentType = file.ContentType,
-            SortOrder = maxOrder + 1
-        };
-
-        db.ProductImages.Add(image);
-        await db.SaveChangesAsync(ct);
-
-        return Results.Created($"/api/products/{id}/images/{image.Id}", new { image.Id });
+        TryDelete(tempPath);
+        return Results.StatusCode(StatusCodes.Status499ClientClosedRequest);
     }
-
-    private static async Task<IResult> DeleteImage(Guid id, Guid imageId, AppDbContext db, CancellationToken ct)
+    catch
     {
-        var deleted = await db.ProductImages
-            .Where(i => i.Id == imageId && i.ProductId == id)
-            .ExecuteDeleteAsync(ct);
-
-        return deleted == 0 ? Results.NotFound() : Results.NoContent();
+        TryDelete(tempPath);
+        // logger.LogError(ex, ...);
+        return Results.Problem("Не удалось собрать архив");
     }
+}
+
+private static void TryDelete(string path)
+{
+    try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+}
+    public static async Task<IResult> UploadFile(
+            [FromForm] UploadDocumentRequest request,
+            IOptions<StorageSettings> options,
+            ClaimsPrincipal principal,
+            AppDbContext context,
+            CancellationToken ct)
+    {
+        if (request.File is null || request.File.Length == 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                    ["file"] = ["Файл обязателен"]
+                    });
+        }
+
+        var userId = principal.GetUserId();
+
+        var product = await context.Products.FirstOrDefaultAsync(x => x.Id == request.ProductId, ct);
+        if (product is null) return Results.NotFound();
+        if (product.CreatorId != userId) return Results.Forbid();
+
+        var dir = Path.Combine(options.Value.AttachmentsRootPath, request.ProductId.ToString());
+        Directory.CreateDirectory(dir);
+
+        var safeName = Path.GetFileName(request.File.FileName);
+        var fullPath = Path.Combine(dir, safeName);
+
+        await using (var stream = File.Create(fullPath))
+            await request.File.CopyToAsync(stream, ct);
+
+        context.Documents.Add(new Document
+                {
+                Id = Guid.CreateVersion7(),
+                ProductId = request.ProductId,
+                Name = safeName,
+                Size = request.File.Length,
+                FilePath = Path.Combine(request.ProductId.ToString(), safeName),
+                });
+        await context.SaveChangesAsync(ct);
+
+        return Results.Ok();
+    }
+
 
     private static Dictionary<string, string[]>? Validate(ProductRequest r)
     {

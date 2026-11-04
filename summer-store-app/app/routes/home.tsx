@@ -1,17 +1,14 @@
-import type { ProductRequest } from "~/Api"
 import ProductPreview from "~/components/product-preview";
+import type { Route } from "../+types/root";
+import { client } from "~/lib/client";
 
-export default function Home() {
-    let products: ProductRequest[] = [
-        {
-            title: "prod1",
-            price: 999
-        },
-    ];
+export async function clientLoader({}: Route.ClientLoaderArgs) {
+    const products = await client.api.productsList();
+    return { products: products.data ?? [] };
+}
 
-    for (let _ = 0; _ <= 3; _++) {
-        products = products.flatMap(i => [i, Object.assign({}, i)])
-    }
+export default function Home({loaderData}: Route.ComponentProps) {
+    const { products } = loaderData;
 
     return (
         <div className="bg-secondary grid grid-cols-1 gap-4 sm:grid-cols-2 p-4 lg:grid-cols-3 xl:grid-cols-4">

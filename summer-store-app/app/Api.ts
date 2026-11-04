@@ -35,9 +35,25 @@ export interface HttpValidationProblemDetails {
   [key: string]: any;
 }
 
+export interface IFileHttpResult {
+  contentType?: string | null;
+  fileDownloadName?: string | null;
+}
+
 export interface LoginRequest {
   email?: string | null;
   password?: string | null;
+}
+
+export interface ProductListItem {
+  /** @format uuid */
+  id?: string;
+  title?: string | null;
+  summary?: string | null;
+  /** @format double */
+  price?: number;
+  /** @format uuid */
+  previewImageId?: string | null;
 }
 
 export interface ProductRequest {
@@ -46,6 +62,17 @@ export interface ProductRequest {
   description?: string | null;
   /** @format double */
   price?: number;
+}
+
+export interface ProductResponse {
+  /** @format uuid */
+  id?: string;
+  title?: string | null;
+  summary?: string | null;
+  description?: string | null;
+  /** @format double */
+  price?: number;
+  imageIds?: string[] | null;
 }
 
 export interface RegisterRequest {
@@ -57,6 +84,13 @@ export interface RegisterRequest {
 export interface UpdateCartItemRequest {
   /** @format int32 */
   quantity?: number;
+}
+
+export interface UploadDocumentRequest {
+  /** @format uuid */
+  productId?: string;
+  /** @format binary */
+  file?: File | null;
 }
 
 import type {
@@ -331,9 +365,10 @@ export class Api<
      * @request GET:/api/products
      */
     productsList: (params: RequestParams = {}) =>
-      this.request<void, any>({
+      this.request<ProductListItem[], any>({
         path: `/api/products`,
         method: "GET",
+        format: "json",
         ...params,
       }),
 
@@ -361,9 +396,10 @@ export class Api<
      * @request GET:/api/products/{id}
      */
     productsDetail: (id: string, params: RequestParams = {}) =>
-      this.request<void, any>({
+      this.request<ProductResponse, void>({
         path: `/api/products/${id}`,
         method: "GET",
+        format: "json",
         ...params,
       }),
 
@@ -405,58 +441,41 @@ export class Api<
      * No description
      *
      * @tags ProductEndpoints
-     * @name ProductsImagesDetail
-     * @request GET:/api/products/{id}/images/{imageId}
+     * @name ProductsAttachmentsList
+     * @request GET:/api/products/attachments
      */
-    productsImagesDetail: (
-      id: string,
-      imageId: string,
-      params: RequestParams = {},
-    ) =>
-      this.request<void, any>({
-        path: `/api/products/${id}/images/${imageId}`,
-        method: "GET",
-        ...params,
-      }),
-
-    /**
-     * No description
-     *
-     * @tags ProductEndpoints
-     * @name ProductsImagesDelete
-     * @request DELETE:/api/products/{id}/images/{imageId}
-     */
-    productsImagesDelete: (
-      id: string,
-      imageId: string,
-      params: RequestParams = {},
-    ) =>
-      this.request<void, any>({
-        path: `/api/products/${id}/images/${imageId}`,
-        method: "DELETE",
-        ...params,
-      }),
-
-    /**
-     * No description
-     *
-     * @tags ProductEndpoints
-     * @name ProductsImagesCreate
-     * @request POST:/api/products/{id}/images
-     */
-    productsImagesCreate: (
-      id: string,
-      data: {
-        /** @format binary */
-        file: File;
+    productsAttachmentsList: (
+      query: {
+        /** @format uuid */
+        id: string;
       },
       params: RequestParams = {},
     ) =>
+      this.request<IFileHttpResult, any>({
+        path: `/api/products/attachments`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags ProductEndpoints
+     * @name ProductsAttachmentsCreate
+     * @request POST:/api/products/{id}/attachments
+     */
+    productsAttachmentsCreate: (
+      id: string,
+      data: UploadDocumentRequest,
+      params: RequestParams = {},
+    ) =>
       this.request<void, any>({
-        path: `/api/products/${id}/images`,
+        path: `/api/products/${id}/attachments`,
         method: "POST",
         body: data,
-        type: ContentType.FormData,
+        type: ContentType.UrlEncoded,
         ...params,
       }),
 

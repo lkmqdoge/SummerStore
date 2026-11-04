@@ -28,13 +28,16 @@ public static class Extensions
             .Configure<AuthSettings>(configuration.GetSection("AuthSettings"))
             .Configure<StorageSettings>(configuration.GetSection("StorageSettings"))
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(o => o.TokenValidationParameters = new()
-            {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey))
+            .AddJwtBearer(o =>{
+                o.MapInboundClaims = false;
+                o.TokenValidationParameters = new()
+                {
+                    ValidateIssuer = false,
+                    ValidateAudience = false,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authSettings.SecretKey))
+                };
             });
 
         services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();

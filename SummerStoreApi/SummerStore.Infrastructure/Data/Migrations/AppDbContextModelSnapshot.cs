@@ -22,6 +22,25 @@ namespace SummerStore.Infrastructure.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("ProductUser", b =>
+                {
+                    b.Property<Guid>("OwnedProductsId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owned_products_id");
+
+                    b.Property<Guid>("OwnersId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owners_id");
+
+                    b.HasKey("OwnedProductsId", "OwnersId")
+                        .HasName("pk_product_user");
+
+                    b.HasIndex("OwnersId")
+                        .HasDatabaseName("ix_product_user_owners_id");
+
+                    b.ToTable("product_user", (string)null);
+                });
+
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Cart", b =>
                 {
                     b.Property<Guid>("Id")
@@ -100,14 +119,18 @@ namespace SummerStore.Infrastructure.Data.Migrations
 
                     b.Property<string>("ContentType")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("content_type");
 
-                    b.Property<string>("Discriminator")
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("FilePath")
                         .IsRequired()
-                        .HasMaxLength(13)
-                        .HasColumnType("character varying(13)")
-                        .HasColumnName("discriminator");
+                        .HasColumnType("text")
+                        .HasColumnName("file_path");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -118,25 +141,25 @@ namespace SummerStore.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("product_id");
 
-                    b.Property<Guid>("ProductId2")
-                        .HasColumnType("uuid")
-                        .HasColumnName("product_id2");
-
                     b.Property<long>("Size")
                         .HasColumnType("bigint")
                         .HasColumnName("size");
 
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
                     b.HasKey("Id")
                         .HasName("pk_documents");
 
-                    b.HasIndex("ProductId2")
-                        .HasDatabaseName("ix_documents_product_id2");
+                    b.HasIndex("ProductId")
+                        .HasDatabaseName("ix_documents_product_id");
 
                     b.ToTable("documents", (string)null);
-
-                    b.HasDiscriminator<string>("Discriminator").HasValue("Document");
-
-                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Product", b =>
@@ -149,6 +172,10 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("creator_id");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -179,6 +206,9 @@ namespace SummerStore.Infrastructure.Data.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_products");
+
+                    b.HasIndex("CreatorId")
+                        .HasDatabaseName("ix_products_creator_id");
 
                     b.HasIndex("Title")
                         .HasDatabaseName("ix_products_title");
@@ -233,18 +263,21 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("SummerStore.Core.Models.Entities.ProductImage", b =>
+            modelBuilder.Entity("ProductUser", b =>
                 {
-                    b.HasBaseType("SummerStore.Core.Models.Entities.Document");
+                    b.HasOne("SummerStore.Core.Models.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("OwnedProductsId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_product_user_products_owned_products_id");
 
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
-
-                    b.HasIndex("ProductId")
-                        .HasDatabaseName("ix_documents_product_id");
-
-                    b.HasDiscriminator().HasValue("ProductImage");
+                    b.HasOne("SummerStore.Core.Models.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnersId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_product_user_users_owners_id");
                 });
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Cart", b =>
@@ -282,24 +315,26 @@ namespace SummerStore.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Document", b =>
                 {
-                    b.HasOne("SummerStore.Core.Models.Entities.Product", null)
-                        .WithMany("Attachments")
-                        .HasForeignKey("ProductId2")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_documents_products_product_id2");
-                });
-
-            modelBuilder.Entity("SummerStore.Core.Models.Entities.ProductImage", b =>
-                {
                     b.HasOne("SummerStore.Core.Models.Entities.Product", "Product")
-                        .WithMany("Images")
+                        .WithMany("Attachments")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_documents_products_product_id");
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("SummerStore.Core.Models.Entities.Product", b =>
+                {
+                    b.HasOne("SummerStore.Core.Models.Entities.User", "Creator")
+                        .WithMany("CreatedProducts")
+                        .HasForeignKey("CreatorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_products_users_creator_id");
+
+                    b.Navigation("Creator");
                 });
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.Cart", b =>
@@ -312,13 +347,13 @@ namespace SummerStore.Infrastructure.Data.Migrations
                     b.Navigation("Attachments");
 
                     b.Navigation("CartItems");
-
-                    b.Navigation("Images");
                 });
 
             modelBuilder.Entity("SummerStore.Core.Models.Entities.User", b =>
                 {
                     b.Navigation("Cart");
+
+                    b.Navigation("CreatedProducts");
                 });
 #pragma warning restore 612, 618
         }

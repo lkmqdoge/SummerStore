@@ -7,4 +7,7 @@ public sealed class User : BaseEntity
     public string PasswordHash { get; set; } = string.Empty;
 
     public Cart? Cart { get; set; }
+
+    public List<Product> CreatedProducts { get; set; } = [];
+    public List<Product> OwnedProducts { get; set; } = [];
 }

@@ -11,8 +11,9 @@ RUN dotnet publish -a $TARGETARCH -c release -o /app --no-restore
 
 # runtime-stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+RUN mkdir -p /data/attachments && chown -R app:app /data/attachments
 EXPOSE 8080
 WORKDIR /app
 COPY --link --from=build /app .
-USER $APP_UID
+USER app
 ENTRYPOINT ["dotnet", "SummerStore.Api.dll"]

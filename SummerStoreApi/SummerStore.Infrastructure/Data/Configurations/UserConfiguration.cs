@@ -24,5 +24,12 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .WithOne(x => x.User)
             .HasForeignKey<Cart>(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.CreatedProducts)
+            .WithOne(x => x.Creator)
+            .HasForeignKey(x => x.CreatorId);
+
+        builder.HasMany(x => x.OwnedProducts)
+            .WithMany(x => x.Owners);
     }
 }
