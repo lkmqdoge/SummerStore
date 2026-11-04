@@ -9,8 +9,10 @@ public sealed class ProductImageConfiguration : IEntityTypeConfiguration<Product
 {
     public void Configure(EntityTypeBuilder<ProductImage> builder)
     {
-        // builder.HasKey(x => x.Id);
-        //
-        // builder.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.ContentType).IsRequired().HasMaxLength(100);
+
+        builder.HasIndex(x => new { x.Id, x.SortOrder});
     }
 }

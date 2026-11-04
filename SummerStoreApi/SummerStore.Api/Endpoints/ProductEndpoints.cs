@@ -1,3 +1,6 @@
+using System.IO.Compression;
+
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 using SummerStore.Core.Models.Dto;
@@ -107,6 +110,37 @@ public static class ProductEndpoints
 
         await tx.CommitAsync(ct);
         return deleted == 0 ? Results.NotFound() : Results.NoContent();
+    }
+
+    private static async Task<FileResult> GetAttachments(Guid id, AppDbContext context, CancellationToken ct)
+    {
+        try {
+            var attachments = await context.Products
+                .Where(p => p.Id == id)
+                .SelectMany(p => p.Attachments)
+                .AsNoTracking()
+                .Select(a => a.FilePath)
+                .ToListAsync(ct);
+
+            await using var memoryStream = new MemoryStream();
+            await using var zipArchive = new ZipArchive(memoryStream, ZipArchiveMode.Create, true);
+
+            foreach (var file in attachments)
+            {
+                zipArchive.CreateEntryFromFile(file, Path.GetFileName(file),CompressionLevel.Optimal);
+            }
+
+            memoryStream.Position = 0;
+
+            return new FileStreamResult(memoryStream, "application/zip")
+            {
+                FileDownloadName = $"{id}.zip"
+            };
+        }
+        catch (Exception e)
+        {
+            return Results.InternalServerError();
+        }
     }
 
     private static async Task<IResult> UploadImage(
