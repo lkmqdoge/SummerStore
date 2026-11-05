@@ -41,6 +41,7 @@ export default function Product({loaderData}: Route.ComponentProps) {
     const [downloading, setDownloading] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
     const isAuthor = product.creatorId === getUserId();
 
     const [adding, setAdding] = useState(false);
@@ -59,7 +60,6 @@ export default function Product({loaderData}: Route.ComponentProps) {
                 quantity: 1,
             });
             setAdded(true);
-            // через пару секунд вернуть кнопку в исходное состояние
             window.setTimeout(() => setAdded(false), 2000);
         } catch (err) {
             const status = (err as any)?.response?.status;
@@ -125,7 +125,7 @@ export default function Product({loaderData}: Route.ComponentProps) {
     return (
         <div className="bg-secondary text-primary p-4 max-w-3xl mx-auto">
             <nav className="mb-4 text-sm opacity-70">
-                <Link to="/" className="hover:underline">← К товарам</Link>
+                <Link to="/" className="hover:underline">К товарам</Link>
             </nav>
 
             <article className="flex flex-col gap-4">
@@ -162,14 +162,16 @@ export default function Product({loaderData}: Route.ComponentProps) {
                 {error && <p role="alert" className="text-red-600">{error}</p>}
 
                 <div className="flex flex-wrap gap-2">
-                    <button
-                        type="button"
-                        onClick={handleDownload}
-                        disabled={downloading}
-                        className="border-primary border-2 px-3 py-1 disabled:opacity-50"
-                    >
-                        {downloading ? "Downloading…" : "Download rewards"}
-                    </button>
+                    {product.isOwner && (<>
+                        <button
+                            type="button"
+                            onClick={handleDownload}
+                            disabled={downloading}
+                            className="border-primary border-2 px-3 py-1 disabled:opacity-50"
+                        >
+                            {downloading ? "Downloading…" : "Download rewards"}
+                        </button>
+                    </>)}
 
                     {isAuthor && (
                         <>

@@ -1,8 +1,7 @@
-import ProductPreview from "~/components/product-preview";
-import type { Route } from "../+types/root";
 import { client } from "~/lib/client";
 import { getUserName } from "~/lib/auth";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
+import type { Route } from "../+types/root";
 
 export async function clientLoader({}: Route.ClientLoaderArgs) {
     const products = await client.api.cartList();
@@ -12,6 +11,16 @@ export async function clientLoader({}: Route.ClientLoaderArgs) {
 export default function Home({loaderData}: Route.ComponentProps) {
     const { items, total } = loaderData;
     const userName = getUserName();
+
+    const handlePayment = async () => {
+        try {
+            await client.api.cartPaymentCreate();
+            
+            redirect("/thankyou");
+        } catch {
+            redirect("/");
+        }
+    }
 
     return (
         <div>
@@ -36,7 +45,7 @@ export default function Home({loaderData}: Route.ComponentProps) {
 
             <div className="flex gap-4">
                 <h1>Total: {total}</h1>
-                <button>Continue to payment</button>
+                <button onClick={handlePayment}>Continue to payment</button>
             </div>
         </div>
     )

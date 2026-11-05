@@ -8,6 +8,7 @@ export default [
         route("logout", "routes/logout.tsx"),
         route("products/create", "routes/product-create.tsx"),
         route("products/:id", "routes/product.tsx"),
-        route("cart", "routes/cart.tsx")
+        route("cart", "routes/cart.tsx"),
+        route("thankyou", "routes/thankyou.tsx")
     ])
 ] satisfies RouteConfig;

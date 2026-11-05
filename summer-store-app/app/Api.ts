@@ -89,6 +89,7 @@ export interface ProductResponse {
   id?: string;
   /** @format uuid */
   creatorId?: string;
+  isOwner?: boolean;
   title?: string | null;
   summary?: string | null;
   description?: string | null;
@@ -377,6 +378,20 @@ export class Api<
       this.request<void, any>({
         path: `/api/cart/items/${productId}`,
         method: "DELETE",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags CartEndpoints
+     * @name CartPaymentCreate
+     * @request POST:/api/cart/payment
+     */
+    cartPaymentCreate: (params: RequestParams = {}) =>
+      this.request<void, any>({
+        path: `/api/cart/payment`,
+        method: "POST",
         ...params,
       }),
 

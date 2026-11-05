@@ -20,6 +20,7 @@ public static class CartEndpoints
         group.MapPut("/items/{productId:guid}", UpdateItem);
         group.MapDelete("/items/{productId:guid}", RemoveItem);
         group.MapDelete("/", Clear);
+        group.MapPost("/payment", Payment);
 
         return app;
     }
@@ -120,6 +121,25 @@ public static class CartEndpoints
             .ExecuteDeleteAsync(ct);
 
         return deleted == 0 ? Results.NotFound() : Results.Ok(await LoadCart(db, userId, ct));
+    }
+
+    private static async Task<IResult> Payment(ClaimsPrincipal principal,
+            AppDbContext context, CancellationToken ct)
+    {
+        try {
+            var userId = principal.GetUserId();
+            var products = await context.CartItems.Where(x => x.Cart.UserId == userId)
+                .Select(x => x.Product).ToListAsync(ct);
+
+            var user = await context.Users.Where(x => x.Id == userId).FirstOrDefaultAsync(ct);
+            products.ForEach(x => x.Owners.Add(user!));
+
+            await context.SaveChangesAsync(ct);
+
+            return Results.Ok();
+        } catch {
+            return Results.InternalServerError();
+        }
     }
 
     private static async Task<IResult> Clear(ClaimsPrincipal user, AppDbContext db, CancellationToken ct)

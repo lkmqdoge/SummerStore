@@ -55,12 +55,17 @@ public static class ProductEndpoints
         return Results.Ok(items);
     }
 
-    private static async Task<IResult> GetById(Guid id, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> GetById(Guid id, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
     {
+        var userId = principal.GetUserId();
         var product = await db.Products.AsNoTracking()
             .Where(p => p.Id == id)
-            .Select(p => new ProductResponse(p.Id, p.CreatorId, p.Title, p.Summary,
-                p.Description, p.Price, p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => i.Id).ToList()))
+            .Select(p => new ProductResponse(
+                p.Id, p.CreatorId,
+                userId != Guid.Empty && (p.CreatorId == userId || p.Owners.Any(o => o.Id == userId)),
+                p.Title, p.Summary,
+                p.Description, p.Price,
+                p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => i.Id).ToList()))
             .FirstOrDefaultAsync(ct);
 
         return product is null ? Results.NotFound() : Results.Ok(product);
@@ -72,20 +77,23 @@ public static class ProductEndpoints
     {
         if (Validate(req) is { } errors) return Results.ValidationProblem(errors);
 
+        var userId = principal.GetUserId();
         var product = new Product
         {
             Title = req.Title.Trim(),
             Summary = req.Summary.Trim(),
             Description = req.Description.Trim(),
             Price = req.Price,
-            CreatorId = principal.GetUserId()
+            CreatorId = userId
         };
 
         db.Products.Add(product);
         await db.SaveChangesAsync(ct);
 
         return Results.Created($"/api/products/{product.Id}",
-                new ProductResponse(product.Id, product.CreatorId, product.Title, product.Summary, product.Description, product.Price, []));
+                new ProductResponse(product.Id, product.CreatorId,
+                    userId != Guid.Empty && (product.CreatorId == userId || product.Owners.Any(o => o.Id == userId)),
+                    product.Title, product.Summary, product.Description, product.Price, []));
     }
 
     private static async Task<IResult> Update(Guid id, ProductRequest req, AppDbContext db, CancellationToken ct)
@@ -115,72 +123,87 @@ public static class ProductEndpoints
         return deleted == 0 ? Results.NotFound() : Results.NoContent();
     }
 
-private static async Task<IResult> GetAttachments(
-    Guid id,
-    IOptions<StorageSettings> options,
-    AppDbContext context,
-    CancellationToken ct)
-{
-    var attachments = await context.Products
-        .Where(p => p.Id == id)
-        .SelectMany(p => p.Attachments)
-        .AsNoTracking()
-        .Select(a => new { a.FilePath, a.Name })
-        .ToListAsync(ct);
-
-    if (attachments.Count == 0) return Results.NotFound();
-
-    var baseDir = Path.Combine(
-        Path.GetFullPath(options.Value.AttachmentsRootPath), id.ToString());
-
-    var tempPath = Path.Combine(Path.GetTempPath(), $"{id}.zip");
-
-    try
+    private static async Task<IResult> GetAttachments(
+            Guid id,
+            IOptions<StorageSettings> options,
+            ClaimsPrincipal principal,
+            AppDbContext context,
+            CancellationToken ct)
     {
-        await using (var fs = new FileStream(
-            tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
-            bufferSize: 81920, useAsync: true))
-        await using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: false))
+        var userId = principal.GetUserId();
+        var product = await context.Products
+            .Where(p => p.Id == id)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ct);
+
+        if (product is null) return Results.NotFound();
+        if (!product.Owners.Any(x => x.Id == userId)
+                && product.CreatorId != userId)
         {
-            foreach (var item in attachments)
+            return Results.Forbid();
+        }
+
+        var attachments = await context.Products
+            .Where(p => p.Id == id)
+            .SelectMany(p => p.Attachments)
+            .AsNoTracking()
+            .Select(a => new { a.FilePath, a.Name })
+            .ToListAsync(ct);
+
+        if (attachments.Count == 0) return Results.NotFound();
+
+        var baseDir = Path.Combine(
+            Path.GetFullPath(options.Value.AttachmentsRootPath), id.ToString());
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"{id}.zip");
+
+        try
+        {
+            await using (var fs = new FileStream(
+                tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                bufferSize: 81920, useAsync: true))
+            await using (var zip = new ZipArchive(fs, ZipArchiveMode.Create, leaveOpen: false))
             {
-                var fullPath = Path.IsPathRooted(item.FilePath)
-                    ? item.FilePath
-                    : Path.Combine(baseDir, Path.GetFileName(item.FilePath));
+                foreach (var item in attachments)
+                {
+                    var fullPath = Path.IsPathRooted(item.FilePath)
+                        ? item.FilePath
+                        : Path.Combine(baseDir, Path.GetFileName(item.FilePath));
 
-                if (!File.Exists(fullPath)) continue;
+                    if (!File.Exists(fullPath)) continue;
 
-                var entryName = string.IsNullOrWhiteSpace(item.Name)
-                    ? Path.GetFileName(fullPath)
-                    : item.Name;
+                    var entryName = string.IsNullOrWhiteSpace(item.Name)
+                        ? Path.GetFileName(fullPath)
+                        : item.Name;
 
-                await zip.CreateEntryFromFileAsync(fullPath, entryName, CompressionLevel.Optimal);
+                    await zip.CreateEntryFromFileAsync(fullPath, entryName, CompressionLevel.Optimal);
+                }
             }
-        } // ← zip закрыт, файл на диске целый
 
-        return Results.File(
-            tempPath,
-            contentType: "application/zip",
-            fileDownloadName: $"{id}.zip",
-            enableRangeProcessing: true);
+            return Results.File(
+                tempPath,
+                contentType: "application/zip",
+                fileDownloadName: $"{id}.zip",
+                enableRangeProcessing: true);
+        }
+        catch (OperationCanceledException)
+        {
+            TryDelete(tempPath);
+            return Results.StatusCode(StatusCodes.Status499ClientClosedRequest);
+        }
+        catch
+        {
+            TryDelete(tempPath);
+            // logger.LogError(ex, ...);
+            return Results.Problem("Не удалось собрать архив");
+        }
     }
-    catch (OperationCanceledException)
-    {
-        TryDelete(tempPath);
-        return Results.StatusCode(StatusCodes.Status499ClientClosedRequest);
-    }
-    catch
-    {
-        TryDelete(tempPath);
-        // logger.LogError(ex, ...);
-        return Results.Problem("Не удалось собрать архив");
-    }
-}
 
-private static void TryDelete(string path)
-{
-    try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
-}
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+    }
+
     public static async Task<IResult> UploadFile(
             [FromForm] UploadDocumentRequest request,
             IOptions<StorageSettings> options,

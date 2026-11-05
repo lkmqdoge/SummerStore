@@ -3,6 +3,7 @@ namespace SummerStore.Core.Models.Dto;
 public sealed record ProductResponse(
     Guid Id,
     Guid CreatorId,
+    bool IsOwner,
     string Title,
     string Summary,
     string Description,
