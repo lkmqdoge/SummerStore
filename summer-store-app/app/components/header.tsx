@@ -13,7 +13,8 @@ export default function Header() {
         <div>
             {isAuthenticated() ? (
                 <>
-                    <Link to={"/products/create"}>Создать</Link>|
+                    <Link to={"/products/create"}>Create</Link>|
+                    <Link to={"/cart"}>Cart</Link>|
                     <Link to={"/logout"}>Logout</Link>
                 </>
             ) : (

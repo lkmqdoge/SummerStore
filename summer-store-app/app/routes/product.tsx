@@ -214,7 +214,7 @@ export function ErrorBoundary() {
     return (
         <div className="bg-secondary text-primary p-4 max-w-3xl mx-auto">
             <h1 className="text-xl font-bold mb-2">{message}</h1>
-            <Link to="/products" className="underline">К списку товаров</Link>
+            <Link to="/" className="underline">Back to catalog</Link>
         </div>
     );
 }
