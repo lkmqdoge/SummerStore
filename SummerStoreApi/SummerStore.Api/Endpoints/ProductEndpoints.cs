@@ -37,9 +37,6 @@ public static class ProductEndpoints
         admin.MapDelete("/{id:guid}", Delete);
         admin.MapPost("{id:guid}/attachments", UploadFile)
             .DisableAntiforgery();
-
-        // admin.MapPost("/{id:guid}/images", UploadImage).DisableAntiforgery();
-        // admin.MapDelete("/{id:guid}/images/{imageId:guid}", DeleteImage);
     }
 
     private static async Task<IResult> GetList(AppDbContext db, CancellationToken ct)
@@ -96,12 +93,15 @@ public static class ProductEndpoints
                     product.Title, product.Summary, product.Description, product.Price, []));
     }
 
-    private static async Task<IResult> Update(Guid id, ProductRequest req, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> Update(Guid id, ProductRequest req,
+            ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
     {
         if (Validate(req) is { } errors) return Results.ValidationProblem(errors);
 
+        var userId = principal.GetUserId();
         var product = await db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
         if (product is null) return Results.NotFound();
+        if (product.CreatorId != userId) return Results.Forbid();
 
         product.Title = req.Title.Trim();
         product.Summary = req.Summary.Trim();
@@ -112,8 +112,13 @@ public static class ProductEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> Delete(Guid id, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> Delete(Guid id, AppDbContext db,
+            ClaimsPrincipal principal, CancellationToken ct)
     {
+        var userId = principal.GetUserId();
+        if (await db.Products.Where(x => x.Id == id).AnyAsync(x => x.CreatorId == userId))
+            return Results.Forbid();
+
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
         await db.CartItems.Where(ci => ci.ProductId == id).ExecuteDeleteAsync(ct);
