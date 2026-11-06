@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { ContentType } from "~/Api";
+import { ContentType, DocumentType } from "~/Api";
 import { client } from "~/lib/client";
 
 
@@ -31,6 +31,10 @@ export default function ProductCreateForm() {
     const summary = String(data.get("summary") ?? "").trim();
     const description = String(data.get("description") ?? "").trim();
     const price = Number(data.get("price"));
+
+    const previewFiles = data.getAll("preview-files")
+      .filter((f): f is File => f instanceof File && f.size > 0);
+
     const files = data
       .getAll("files")
       .filter((f): f is File => f instanceof File && f.size > 0);
@@ -56,7 +60,6 @@ export default function ProductCreateForm() {
         price,
       });
 
-      // productsCreate типизирован как void, поэтому id достаём приведением типа
       const created = response.data as unknown as { id?: string } | null;
       const productId = created?.id;
 
@@ -67,10 +70,18 @@ export default function ProductCreateForm() {
           );
         }
 
+        for (const preview of previewFiles) {
+          await client.api.productsAttachmentsCreate(
+            productId,
+            { productId, file: preview, type: DocumentType.Value1 },
+            { type: ContentType.FormData },
+          );
+        }
+
         for (const file of files) {
           await client.api.productsAttachmentsCreate(
             productId,
-            { productId, file },
+            { productId, file, type: DocumentType.Value1 },
             { type: ContentType.FormData },
           );
         }
@@ -130,6 +141,18 @@ export default function ProductCreateForm() {
             step="0.01"
             className="border-primary border-2"
             required
+          />
+        </label>
+
+        <label className="flex flex-col">
+            Превью
+          <input
+            id="preview-files"
+            name="preview-files"
+            accept="image/*"
+            type="file"
+            className="border-primary border-2"
+            multiple
           />
         </label>
 

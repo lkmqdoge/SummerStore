@@ -123,22 +123,60 @@ public static class CartEndpoints
         return deleted == 0 ? Results.NotFound() : Results.Ok(await LoadCart(db, userId, ct));
     }
 
-    private static async Task<IResult> Payment(ClaimsPrincipal principal,
-            AppDbContext context, CancellationToken ct)
+
+    private static async Task<IResult> Payment(
+        ClaimsPrincipal principal,
+        AppDbContext context,
+        ILogger<Program> logger,
+        CancellationToken ct)
     {
-        try {
-            var userId = principal.GetUserId();
-            var products = await context.CartItems.Where(x => x.Cart.UserId == userId)
-                .Select(x => x.Product).ToListAsync(ct);
+        var userId = principal.GetUserId();
 
-            var user = await context.Users.Where(x => x.Id == userId).FirstOrDefaultAsync(ct);
-            products.ForEach(x => x.Owners.Add(user!));
+        var user = await context.Users
+            .Include(u => u.OwnedProducts)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null) return Results.Unauthorized();
 
+        var products = await context.CartItems
+            .Where(x => x.Cart.UserId == userId)
+            .Select(x => x.Product)
+            .Distinct()
+            .ToListAsync(ct);
+
+        if (products.Count == 0)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["cart"] = ["Корзина пуста"]
+            });
+        }
+
+        var ownedIds = user.OwnedProducts.Select(p => p.Id).ToHashSet();
+        foreach (var product in products)
+        {
+            if (!ownedIds.Contains(product.Id))
+                user.OwnedProducts.Add(product);
+        }
+
+        await using var tx = await context.Database.BeginTransactionAsync(ct);
+
+        try
+        {
             await context.SaveChangesAsync(ct);
+            await context.CartItems
+                .Where(i => i.Cart.UserId == userId)
+                .ExecuteDeleteAsync(ct);
 
+            await tx.CommitAsync(ct);
             return Results.Ok();
-        } catch {
-            return Results.InternalServerError();
+        }
+        catch (DbUpdateException ex)
+        {
+            await tx.RollbackAsync(ct);
+            logger.LogError(ex, "Payment failed for user {UserId}", userId);
+            return ex.InnerException is Npgsql.PostgresException { SqlState: "23505" }
+                ? Results.Ok()
+                : Results.Problem("Не удалось оформить заказ");
         }
     }
 

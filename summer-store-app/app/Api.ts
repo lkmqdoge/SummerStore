@@ -10,6 +10,12 @@
  * ---------------------------------------------------------------
  */
 
+/** @format int32 */
+export enum DocumentType {
+  Value0 = 0,
+  Value1 = 1,
+}
+
 export interface AddCartItemRequest {
   /** @format uuid */
   productId?: string;
@@ -112,6 +118,7 @@ export interface UpdateCartItemRequest {
 export interface UploadDocumentRequest {
   /** @format uuid */
   productId?: string;
+  type?: DocumentType;
   /** @format binary */
   file?: File | null;
 }
@@ -479,6 +486,25 @@ export class Api<
      * No description
      *
      * @tags ProductEndpoints
+     * @name ProductsImagesDetail
+     * @request GET:/api/products/{id}/images/{imageId}
+     */
+    productsImagesDetail: (
+      id: string,
+      imageId: string,
+      params: RequestParams = {},
+    ) =>
+      this.request<IFileHttpResult, any>({
+        path: `/api/products/${id}/images/${imageId}`,
+        method: "GET",
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags ProductEndpoints
      * @name ProductsAttachmentsList
      * @request GET:/api/products/attachments
      */
@@ -494,6 +520,20 @@ export class Api<
         method: "GET",
         query: query,
         format: "json",
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags ProductEndpoints
+     * @name ProductsLibraryList
+     * @request GET:/api/products/library
+     */
+    productsLibraryList: (params: RequestParams = {}) =>
+      this.request<void, any>({
+        path: `/api/products/library`,
+        method: "GET",
         ...params,
       }),
 

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { client } from "~/lib/client";
 import { getUserId, isAuthenticated } from "~/lib/auth";
 import type { Route } from "../+types/root";
+import ProductGallery from "~/components/product-gallery";
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
     const id = params.id;
@@ -140,6 +141,8 @@ export default function Product({loaderData}: Route.ComponentProps) {
                         {priceFormatter.format(product.price ?? 0)}
                     </div>
                 </header>
+        
+                <ProductGallery productId={product.id!} imageIds={product.imageIds ?? []} />
 
                 {product.description && (
                     <section>

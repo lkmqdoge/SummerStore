@@ -10,11 +10,12 @@ export default function Header() {
             </Link>
         </div>
 
-        <div>
+        <div className="text-primary">
             {isAuthenticated() ? (
                 <>
                     <Link to={"/products/create"}>Create</Link>|
                     <Link to={"/cart"}>Cart</Link>|
+                    <Link to={"/library"}>Library</Link>|
                     <Link to={"/logout"}>Logout</Link>
                 </>
             ) : (

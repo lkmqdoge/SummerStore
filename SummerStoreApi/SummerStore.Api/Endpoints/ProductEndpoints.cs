@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 using SummerStore.Core;
+using SummerStore.Core.Enums;
 using SummerStore.Core.Models.Dto;
 using SummerStore.Core.Models.Entities;
 using SummerStore.Infrastructure.Data;
@@ -28,11 +29,15 @@ public static class ProductEndpoints
             .Produces<ProductResponse>()
             .Produces(StatusCodes.Status404NotFound);
 
+        group.MapGet("/{id:guid}/images/{imageId:guid}", GetImage)
+            .Produces<IFileHttpResult>();
+
         group.MapGet("/attachments", GetAttachments)
             .Produces<IFileHttpResult>();
 
         var admin = group.MapGroup("").RequireAuthorization();
         admin.MapPost("/", Create);
+        admin.MapGet("/library", GetOwned);
         admin.MapPut("/{id:guid}", Update);
         admin.MapDelete("/{id:guid}", Delete);
         admin.MapPost("{id:guid}/attachments", UploadFile)
@@ -44,6 +49,20 @@ public static class ProductEndpoints
         var query = db.Products.AsNoTracking();
         var items = await query
             .OrderByDescending(p => p.CreatedAt)
+            .Select(p => new ProductListItem(
+                p.Id, p.Title, p.Summary, p.Price,
+                p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => (Guid?)i.Id).FirstOrDefault()))
+            .ToListAsync(ct);
+
+        return Results.Ok(items);
+    }
+
+    private static async Task<IResult> GetOwned(AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+    {
+        var userId = principal.GetUserId();
+        var items = await db.Users.Where(x => x.Id == userId)
+            .AsNoTracking()
+            .SelectMany(x => x.OwnedProducts)
             .Select(p => new ProductListItem(
                 p.Id, p.Title, p.Summary, p.Price,
                 p.Attachments.Where(x => x.Type == Core.Enums.DocumentType.Preview).Select(i => (Guid?)i.Id).FirstOrDefault()))
@@ -199,7 +218,6 @@ public static class ProductEndpoints
         catch
         {
             TryDelete(tempPath);
-            // logger.LogError(ex, ...);
             return Results.Problem("Не удалось собрать архив");
         }
     }
@@ -207,6 +225,41 @@ public static class ProductEndpoints
     private static void TryDelete(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+    }
+
+    private static async Task<IResult> GetImage(
+        Guid id, Guid imageId,
+        IOptions<StorageSettings> options,
+        AppDbContext db,
+        CancellationToken ct)
+    {
+        var doc = await db.Documents.AsNoTracking()
+            .Where(d => d.Id == imageId && d.ProductId == id &&
+                        (d.Type == DocumentType.Preview))
+            .Select(d => new { d.FilePath, d.Name })
+            .FirstOrDefaultAsync(ct);
+
+        if (doc is null) return Results.NotFound();
+
+        var baseDir = Path.Combine(
+            Path.GetFullPath(options.Value.AttachmentsRootPath), id.ToString());
+
+        var fullPath = Path.IsPathRooted(doc.FilePath)
+            ? doc.FilePath
+            : Path.Combine(baseDir, Path.GetFileName(doc.FilePath));
+
+        if (!File.Exists(fullPath)) return Results.NotFound();
+
+        var contentType = Path.GetExtension(fullPath).ToLowerInvariant() switch
+        {
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".webp" => "image/webp",
+            ".gif" => "image/gif",
+            _ => "application/octet-stream",
+        };
+
+        return Results.File(fullPath, contentType, enableRangeProcessing: true);
     }
 
     public static async Task<IResult> UploadFile(
@@ -240,13 +293,14 @@ public static class ProductEndpoints
             await request.File.CopyToAsync(stream, ct);
 
         context.Documents.Add(new Document
-                {
+            {
                 Id = Guid.CreateVersion7(),
                 ProductId = request.ProductId,
+                Type = request.Type,
                 Name = safeName,
                 Size = request.File.Length,
                 FilePath = Path.Combine(request.ProductId.ToString(), safeName),
-                });
+            });
         await context.SaveChangesAsync(ct);
 
         return Results.Ok();
